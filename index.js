@@ -1,8 +1,7 @@
 const express = require("express");
 const cors = require("cors");
 const fetch = require("node-fetch");
-const xml2js = require("xml2js");
-const xmlbuilder = require("xmlbuilder");
+const xml2js = require("xml2js"); // Mantengo por si necesitamos parsear XML en la respuesta
 
 const app = express(); // Aseguramos que 'app' está definido aquí
 const PORT = process.env.PORT || 3000;
@@ -97,15 +96,11 @@ app.post("/cotizar", async (req, res) => {
 
   console.log("Datos enviados a Tresguerras:", requestData);
 
-  const xml = xmlbuilder.create({
-    request: requestData
-  }).end({ pretty: true }); // Formato legible para depuración
-
   try {
     const response = await fetch(TRESGUERRAS_API_URL, {
       method: "POST",
-      headers: { "Content-Type": "application/xml" },
-      body: xml,
+      headers: { "Content-Type": "application/x-www-form-urlencoded" }, // Cambiado a form-urlencoded
+      body: new URLSearchParams(requestData).toString(),
       timeout: 30000
     });
 
@@ -113,7 +108,7 @@ app.post("/cotizar", async (req, res) => {
       throw new Error(`HTTP error: ${response.status} - ${response.statusText}`);
     }
 
-    const xmlText = await response.text();
+    const xmlText = await response.text(); // Esperamos XML como respuesta
     console.log("Respuesta XML de Tresguerras:", xmlText);
     const parser = new xml2js.Parser({ explicitArray: false });
     const data = await new Promise((resolve, reject) => {
