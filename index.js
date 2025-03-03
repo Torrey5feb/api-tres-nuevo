@@ -7,7 +7,8 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 app.use(cors());
-app.use(express.json());
+app.use(express.urlencoded({ extended: true })); // Para form-urlencoded
+app.use(express.json()); // Para JSON (opcional, por si el frontend cambia)
 
 const TRESGUERRAS_API_URL =
   "https://intranet.tresguerras.com.mx/WS/api/Customer/XML/ws_Api.php";
@@ -19,7 +20,10 @@ async function obtenerDatosProducto(modelo) {
   try {
     console.log(`Obteniendo datos para el modelo: ${modelo}`);
     const response = await fetch(
-      "https://raw.githubusercontent.com/Torrey5feb/URLS/refs/heads/main/modelos.json"
+      "https://raw.githubusercontent.com/Torrey5feb/URLS/refs/heads/main/modelos.json",
+      {
+        timeout: 30000, // Aumentado a 30 segundos según la documentación
+      }
     );
     if (!response.ok)
       throw new Error(`HTTP error al obtener modelos: ${response.status}`);
@@ -33,27 +37,14 @@ async function obtenerDatosProducto(modelo) {
 
 app.post("/cotizar", async (req, res) => {
   console.log("Solicitud POST recibida en /cotizar con datos:", req.body);
-
   const { modelo, cp_destino } = req.body;
 
   if (!modelo || !cp_destino) {
-    console.error("Error: Faltan datos (modelo o CP)");
     return res.send("<h3>Error: Faltan datos (modelo o CP).</h3>");
   }
 
-  if (!/^\d{5}$/.test(cp_destino)) {
-    console.error(
-      "Error: Código Postal inválido recibido en backend:",
-      cp_destino
-    );
-    return res.send("<h3>Error: Código postal inválido en backend.</h3>");
-  }
-
-  console.log(`Datos correctos recibidos: Modelo=${modelo}, CP=${cp_destino}`);
-
   const productoData = await obtenerDatosProducto(modelo);
   if (!productoData) {
-    console.error("Error: Modelo no encontrado:", modelo);
     return res.send(
       "<h3>Error: Modelo no encontrado en la base de datos.</h3>"
     );
@@ -62,23 +53,28 @@ app.post("/cotizar", async (req, res) => {
   const requestData = {
     Access_Usr: ACCESS_USR,
     Access_Pass: ACCESS_PASS,
-    cp_origen: "76159",
+    cp_origen: "76159", // Código postal de origen fijo según tu indicación
     cp_destino: cp_destino,
     no_bultos_1: "1",
-    contenido_1: productoData.nombre || "Producto Torrey",
-    peso_1: String(productoData.peso || 5),
-    alto_1: String(productoData.alto || 0.3),
-    largo_1: String(productoData.largo || 0.4),
-    ancho_1: String(productoData.ancho || 0.2),
+    contenido_1: productoData.nombre || "Báscula Torrey 40kg",
+    peso_1: String(productoData.peso || 50), // Usar 50 para TVC17
+    alto_1: String(productoData.alto || 1.8), // Usar 1.8 para TVC17
+    largo_1: String(productoData.largo || 0.9), // Usar 0.9 para TVC17
+    ancho_1: String(productoData.ancho || 0.9), // Usar 0.9 para TVC17
     bandera_recoleccion: "S",
     bandera_ead: "S",
     retencion_iva_cliente: "N",
-    valor_declarado: String(productoData.precio || 2500),
+    valor_declarado: String(productoData.precio || 2500), // Usar 2500 para TVC17
     referencia: `cotizaprod_${Date.now()}`,
     colonia_rem: "DESCONOCIDA",
     colonia_des: "DESCONOCIDA",
   };
 
+  console.log(
+    "Código postal recibido en el servidor (raw):",
+    req.body.cp_destino
+  );
+  console.log("Código postal procesado:", cp_destino);
   console.log("Datos enviados a Tresguerras:", requestData);
 
   try {
@@ -86,6 +82,7 @@ app.post("/cotizar", async (req, res) => {
       method: "POST",
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
       body: new URLSearchParams(requestData).toString(),
+      timeout: 30000,
     });
 
     if (!response.ok) {
@@ -94,9 +91,8 @@ app.post("/cotizar", async (req, res) => {
       );
     }
 
-    const xmlText = await response.text();
+    const xmlText = await response.text(); // Esperamos XML como respuesta
     console.log("Respuesta XML de Tresguerras:", xmlText);
-
     const parser = new xml2js.Parser({ explicitArray: false });
     const data = await new Promise((resolve, reject) => {
       parser.parseString(xmlText, (err, result) => {
@@ -106,26 +102,36 @@ app.post("/cotizar", async (req, res) => {
     });
 
     if (data.return && !data.return.error) {
-      res.send(
-        `<h3>Costo de envío: $${
-          data.return.total || "0"
-        } MXN</h3><p>Días de tránsito: ${
-          data.return.dias_transito || "N/A"
-        }</p>`
-      );
+      res.send(`
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <title>Resultado del Envío</title>
+          <style>
+            body { font-family: Arial, sans-serif; padding: 20px; text-align: center; }
+          </style>
+        </head>
+        <body>
+          <h3>Resultado para ${encodeURIComponent(modelo)}</h3>
+          <p>Costo de envío: $${data.return.total || "0"} MXN</p>
+          <p>Días de tránsito: ${data.return.dias_transito || "N/A"}</p>
+          <button onclick="window.close()">Cerrar</button>
+        </body>
+        </html>
+      `);
     } else {
       res.send(
-        `<h3>Error: ${data.return?.error || "Respuesta inesperada"}</h3><p>${
-          data.return?.descripcion_error || "Sin detalles"
+        `<h3>Error en la cotización</h3><p>${
+          data.return?.error || "Respuesta inesperada"
         }</p>`
       );
     }
   } catch (error) {
-    console.error("Error al conectar con Tresguerras:", error);
-    res.send(`<h3>Error al calcular el envío</h3><p>${error.message}</p>`);
+    console.error("Error en la API:", error);
+    res.send(`<h3>Error al procesar la cotización</h3><p>${error.message}</p>`);
   }
 });
 
 app.listen(PORT, () => {
-  console.log(`Servidor funcionando en http://localhost:${PORT}`);
+  console.log(`Servidor funcionando en Railway en el puerto ${PORT}`);
 });
