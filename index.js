@@ -15,10 +15,11 @@ const ACCESS_PASS = "VVZaQ1NrMUVRWGhPYWtwRVZEQTFWVlZyUmxSU1kwOVNVVlZHUkZaR1RrSlR
 
 async function obtenerDatosProducto(modelo) {
   try {
+    console.log(`Obteniendo datos para el modelo: ${modelo}`);
     const response = await fetch("https://raw.githubusercontent.com/Torrey5feb/URLS/refs/heads/main/modelos.json", {
       timeout: 5000
     });
-    if (!response.ok) throw new Error(`HTTP error: ${response.status}`);
+    if (!response.ok) throw new Error(`HTTP error al obtener modelos: ${response.status}`);
     const jsonData = await response.json();
     return jsonData.productos[modelo] || null;
   } catch (error) {
@@ -42,13 +43,13 @@ app.get("/cotizar", (req, res) => {
       <style>
         body { font-family: Arial, sans-serif; padding: 20px; text-align: center; }
         input, button { margin: 5px; padding: 5px; }
-        #resultado { margin-top: 10px; }
+        #resultado { margin-top: 10px; color: #333; }
       </style>
     </head>
     <body>
-      <h3>Cotizar Envío para ${modelo}</h3>
+      <h3>Cotizar Envío para ${encodeURIComponent(modelo)}</h3>
       <form method="POST" action="/cotizar">
-        <input type="hidden" name="modelo" value="${modelo}">
+        <input type="hidden" name="modelo" value="${encodeURIComponent(modelo)}">
         <label for="cp_destino">Código Postal:</label><br>
         <input type="text" id="cp_destino" name="cp_destino" maxlength="5" pattern="\\d{5}" required><br>
         <button type="submit">Calcular</button>
@@ -92,6 +93,8 @@ app.post("/cotizar", async (req, res) => {
     colonia_des: "DESCONOCIDA"
   };
 
+  console.log("Datos enviados a Tresguerras:", requestData);
+
   try {
     const response = await fetch(TRESGUERRAS_API_URL, {
       method: "POST",
@@ -100,7 +103,10 @@ app.post("/cotizar", async (req, res) => {
       timeout: 10000
     });
 
-    if (!response.ok) throw new Error(`HTTP error: ${response.status}`);
+    if (!response.ok) {
+      throw new Error(`HTTP error: ${response.status} - ${response.statusText}`);
+    }
+
     const data = await response.json();
 
     if (data.return && !data.return.error) {
@@ -114,15 +120,15 @@ app.post("/cotizar", async (req, res) => {
           </style>
         </head>
         <body>
-          <h3>Resultado para ${modelo}</h3>
-          <p>Costo de envío: $${data.return.total} MXN</p>
-          <p>Días de tránsito: ${data.return.dias_transito}</p>
+          <h3>Resultado para ${encodeURIComponent(modelo)}</h3>
+          <p>Costo de envío: $${data.return.total || "0"} MXN</p>
+          <p>Días de tránsito: ${data.return.dias_transito || "N/A"}</p>
           <button onclick="window.close()">Cerrar</button>
         </body>
         </html>
       `);
     } else {
-      res.send(`<h3>Error: ${data.return?.error || "Respuesta inesperada"}</h3><p>${data.return?.descripcion_error || ""}</p>`);
+      res.send(`<h3>Error: ${data.return?.error || "Respuesta inesperada"}</h3><p>${data.return?.descripcion_error || "Sin detalles"}</p>`);
     }
   } catch (error) {
     console.error("Error al conectar con Tresguerras:", error);
