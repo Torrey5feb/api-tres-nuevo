@@ -1,7 +1,8 @@
 const express = require("express");
 const cors = require("cors");
 const fetch = require("node-fetch");
-const xml2js = require("xml2js"); // Necesitarás instalar esta dependencia para parsear XML
+const xml2js = require("xml2js");
+const xmlbuilder = require("xmlbuilder");
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -18,7 +19,7 @@ async function obtenerDatosProducto(modelo) {
   try {
     console.log(`Obteniendo datos para el modelo: ${modelo}`);
     const response = await fetch("https://raw.githubusercontent.com/Torrey5feb/URLS/refs/heads/main/modelos.json", {
-      timeout: 5000
+      timeout: 30000 // Aumentado a 30 segundos según la documentación
     });
     if (!response.ok) throw new Error(`HTTP error al obtener modelos: ${response.status}`);
     const jsonData = await response.json();
@@ -80,49 +81,47 @@ app.post("/cotizar", async (req, res) => {
     cp_origen: "76159",
     cp_destino: cp_destino,
     no_bultos_1: "1",
-    contenido_1: productoData.nombre || "Producto sin nombre",
-    peso_1: String(productoData.peso || 1),
+    contenido_1: productoData.nombre || "Paquete de Caja pequeña",
+    peso_1: String(productoData.peso || 10), // Valor por defecto según la muestra
     alto_1: String(productoData.alto || 0.1),
-    largo_1: String(productoData.largo || 0.1),
-    ancho_1: String(productoData.ancho || 0.1),
+    largo_1: String(productoData.largo || 0.15),
+    ancho_1: String(productoData.ancho || 0.2),
     bandera_recoleccion: "S",
     bandera_ead: "S",
     retencion_iva_cliente: "N",
-    valor_declarado: String(productoData.precio || 1000),
+    valor_declarado: String(productoData.precio || 2000), // Valor por defecto según la muestra
     referencia: `cotizaprod_${Date.now()}`,
-    colonia_rem: "DESCONOCIDA",
-    colonia_des: "DESCONOCIDA"
+    colonia_rem: "DESCONOCIDA", // Ajusta según necesidad o usa "ESTRADA"
+    colonia_des: "DESCONOCIDA"  // Ajusta según necesidad o usa "CENTRO"
   };
 
   console.log("Datos enviados a Tresguerras:", requestData);
 
+  const xml = xmlbuilder.create({
+    request: requestData
+  }).end({ pretty: true }); // Formato legible para depuración
+
   try {
     const response = await fetch(TRESGUERRAS_API_URL, {
       method: "POST",
-      headers: { "Content-Type": "application/x-www-form-urlencoded" }, // Cambiado a form-urlencoded, ajusta si es XML
-      body: new URLSearchParams(requestData).toString(),
-      timeout: 10000
+      headers: { "Content-Type": "application/xml" },
+      body: xml,
+      timeout: 30000
     });
 
     if (!response.ok) {
       throw new Error(`HTTP error: ${response.status} - ${response.statusText}`);
     }
 
-    let data;
-    const contentType = response.headers.get("content-type");
-    if (contentType && contentType.includes("application/xml")) {
-      const xmlText = await response.text();
-      console.log("Respuesta XML de Tresguerras:", xmlText);
-      const parser = new xml2js.Parser();
-      data = await new Promise((resolve, reject) => {
-        parser.parseString(xmlText, (err, result) => {
-          if (err) reject(err);
-          else resolve(result);
-        });
+    const xmlText = await response.text();
+    console.log("Respuesta XML de Tresguerras:", xmlText);
+    const parser = new xml2js.Parser({ explicitArray: false });
+    const data = await new Promise((resolve, reject) => {
+      parser.parseString(xmlText, (err, result) => {
+        if (err) reject(err);
+        else resolve(result);
       });
-    } else {
-      data = await response.json();
-    }
+    });
 
     if (data.return && !data.return.error) {
       res.send(`
