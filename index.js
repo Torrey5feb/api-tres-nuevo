@@ -1,26 +1,28 @@
 const express = require("express");
 const cors = require("cors");
 const fetch = require("node-fetch");
-const xml2js = require("xml2js"); // Mantengo por si necesitamos parsear XML en la respuesta
+const xml2js = require("xml2js");
 
-const app = express(); // Aseguramos que 'app' está definido aquí
+const app = express();
 const PORT = process.env.PORT || 3000;
 
 app.use(cors());
 app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
 
-const TRESGUERRAS_API_URL = "https://intranet.tresguerras.com.mx/WS/api/Customer/XML/ws_Api.php";
+const TRESGUERRAS_API_URL =
+  "https://intranet.tresguerras.com.mx/WS/api/Customer/XML/ws_Api.php";
 const ACCESS_USR = "API00162";
-const ACCESS_PASS = "VVZaQ1NrMUVRWGhPYWtwRVZEQTFWVlZyUmxSU1kwOVNVVlZHUkZaR1RrSlRNRlph";
+const ACCESS_PASS =
+  "VVZaQ1NrMUVRWGhPYWtwRVZEQTFWVlZyUmxSU1kwOVNVVlZHUkZaR1RrSlRNRlph";
 
 async function obtenerDatosProducto(modelo) {
   try {
-    console.log(`Obteniendo datos para el modelo: ${modelo}`);
-    const response = await fetch("https://raw.githubusercontent.com/Torrey5feb/URLS/refs/heads/main/modelos.json", {
-      timeout: 30000 // Aumentado a 30 segundos según la documentación
-    });
-    if (!response.ok) throw new Error(`HTTP error al obtener modelos: ${response.status}`);
+    const response = await fetch(
+      "https://raw.githubusercontent.com/Torrey5feb/URLS/main/modelos.json"
+    );
+    if (!response.ok)
+      throw new Error(`HTTP error al obtener modelos: ${response.status}`);
     const jsonData = await response.json();
     return jsonData.productos[modelo] || null;
   } catch (error) {
@@ -28,38 +30,6 @@ async function obtenerDatosProducto(modelo) {
     return null;
   }
 }
-
-app.get("/cotizar", (req, res) => {
-  console.log("Solicitud GET recibida en /cotizar con modelo:", req.query.modelo);
-  const modelo = req.query.modelo || "";
-  if (!modelo) {
-    return res.send("<h3>Error: No se proporcionó un modelo de producto.</h3>");
-  }
-
-  res.send(`
-    <!DOCTYPE html>
-    <html>
-    <head>
-      <title>Cotizar Envío</title>
-      <style>
-        body { font-family: Arial, sans-serif; padding: 20px; text-align: center; }
-        input, button { margin: 5px; padding: 5px; }
-        #resultado { margin-top: 10px; color: #333; }
-      </style>
-    </head>
-    <body>
-      <h3>Cotizar Envío para ${encodeURIComponent(modelo)}</h3>
-      <form method="POST" action="/cotizar">
-        <input type="hidden" name="modelo" value="${encodeURIComponent(modelo)}">
-        <label for="cp_destino">Código Postal:</label><br>
-        <input type="text" id="cp_destino" name="cp_destino" maxlength="5" pattern="\\d{5}" required><br>
-        <button type="submit">Calcular</button>
-      </form>
-      <div id="resultado"></div>
-    </body>
-    </html>
-  `);
-});
 
 app.post("/cotizar", async (req, res) => {
   console.log("Solicitud POST recibida en /cotizar con datos:", req.body);
@@ -71,7 +41,9 @@ app.post("/cotizar", async (req, res) => {
 
   const productoData = await obtenerDatosProducto(modelo);
   if (!productoData) {
-    return res.send("<h3>Error: Modelo no encontrado en la base de datos.</h3>");
+    return res.send(
+      "<h3>Error: Modelo no encontrado en la base de datos.</h3>"
+    );
   }
 
   const requestData = {
@@ -80,36 +52,32 @@ app.post("/cotizar", async (req, res) => {
     cp_origen: "76159",
     cp_destino: cp_destino,
     no_bultos_1: "1",
-    contenido_1: productoData.nombre || "Paquete de Caja pequeña",
-    peso_1: String(productoData.peso || 10), // Valor por defecto según la muestra
-    alto_1: String(productoData.alto || 0.1),
-    largo_1: String(productoData.largo || 0.15),
+    contenido_1: productoData.nombre || "Báscula Torrey",
+    peso_1: String(productoData.peso || 5),
+    alto_1: String(productoData.alto || 0.3),
+    largo_1: String(productoData.largo || 0.4),
     ancho_1: String(productoData.ancho || 0.2),
     bandera_recoleccion: "S",
     bandera_ead: "S",
     retencion_iva_cliente: "N",
-    valor_declarado: String(productoData.precio || 2000), // Valor por defecto según la muestra
+    valor_declarado: String(productoData.precio || 2500),
     referencia: `cotizaprod_${Date.now()}`,
-    colonia_rem: "DESCONOCIDA", // Ajusta según necesidad o usa "ESTRADA"
-    colonia_des: "DESCONOCIDA"  // Ajusta según necesidad o usa "CENTRO"
+    colonia_rem: "DESCONOCIDA",
+    colonia_des: "DESCONOCIDA",
   };
-
-  console.log("Datos enviados a Tresguerras:", requestData);
 
   try {
     const response = await fetch(TRESGUERRAS_API_URL, {
       method: "POST",
-      headers: { "Content-Type": "application/x-www-form-urlencoded" }, // Cambiado a form-urlencoded
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
       body: new URLSearchParams(requestData).toString(),
-      timeout: 30000
     });
 
     if (!response.ok) {
-      throw new Error(`HTTP error: ${response.status} - ${response.statusText}`);
+      throw new Error(`HTTP error: ${response.status}`);
     }
 
-    const xmlText = await response.text(); // Esperamos XML como respuesta
-    console.log("Respuesta XML de Tresguerras:", xmlText);
+    const xmlText = await response.text();
     const parser = new xml2js.Parser({ explicitArray: false });
     const data = await new Promise((resolve, reject) => {
       parser.parseString(xmlText, (err, result) => {
@@ -120,31 +88,23 @@ app.post("/cotizar", async (req, res) => {
 
     if (data.return && !data.return.error) {
       res.send(`
-        <!DOCTYPE html>
-        <html>
-        <head>
-          <title>Resultado del Envío</title>
-          <style>
-            body { font-family: Arial, sans-serif; padding: 20px; text-align: center; }
-          </style>
-        </head>
-        <body>
-          <h3>Resultado para ${encodeURIComponent(modelo)}</h3>
-          <p>Costo de envío: $${data.return.total || "0"} MXN</p>
-          <p>Días de tránsito: ${data.return.dias_transito || "N/A"}</p>
-          <button onclick="window.close()">Cerrar</button>
-        </body>
-        </html>
+        <h3>Resultado para ${modelo}</h3>
+        <p>Costo de envío: $${data.return.total || "0"} MXN</p>
+        <p>Días de tránsito: ${data.return.dias_transito || "N/A"}</p>
       `);
     } else {
-      res.send(`<h3>Error: ${data.return?.error || "Respuesta inesperada"}</h3><p>${data.return?.descripcion_error || "Sin detalles"}</p>`);
+      res.send(
+        `<h3>Error en la cotización</h3><p>${
+          data.return?.error || "Sin detalles"
+        }</p>`
+      );
     }
   } catch (error) {
-    console.error("Error al conectar con Tresguerras:", error);
-    res.send(`<h3>Error al calcular el envío</h3><p>${error.message}</p>`);
+    console.error("Error en la API:", error);
+    res.send("<h3>Error al procesar la cotización.</h3>");
   }
 });
 
 app.listen(PORT, () => {
-  console.log(`Servidor funcionando en http://localhost:${PORT}`);
+  console.log(`Servidor funcionando en Railway en el puerto ${PORT}`);
 });
