@@ -1,6 +1,7 @@
 const express = require("express");
 const cors = require("cors");
 const fetch = require("node-fetch");
+const xml2js = require("xml2js"); // Necesitarás instalar esta dependencia para parsear XML
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -9,7 +10,7 @@ app.use(cors());
 app.use(express.urlencoded({ extended: true }));
 app.use(express.json());
 
-const TRESGUERRAS_API_URL = "https://intranet.tresguerras.com.mx/WS/api/Customer/JSON/?action=ApiCotizacion";
+const TRESGUERRAS_API_URL = "https://intranet.tresguerras.com.mx/WS/api/Customer/XML/ws_Api.php";
 const ACCESS_USR = "API00162";
 const ACCESS_PASS = "VVZaQ1NrMUVRWGhPYWtwRVZEQTFWVlZyUmxSU1kwOVNVVlZHUkZaR1RrSlRNRlph";
 
@@ -98,8 +99,8 @@ app.post("/cotizar", async (req, res) => {
   try {
     const response = await fetch(TRESGUERRAS_API_URL, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(requestData),
+      headers: { "Content-Type": "application/x-www-form-urlencoded" }, // Cambiado a form-urlencoded, ajusta si es XML
+      body: new URLSearchParams(requestData).toString(),
       timeout: 10000
     });
 
@@ -107,7 +108,21 @@ app.post("/cotizar", async (req, res) => {
       throw new Error(`HTTP error: ${response.status} - ${response.statusText}`);
     }
 
-    const data = await response.json();
+    let data;
+    const contentType = response.headers.get("content-type");
+    if (contentType && contentType.includes("application/xml")) {
+      const xmlText = await response.text();
+      console.log("Respuesta XML de Tresguerras:", xmlText);
+      const parser = new xml2js.Parser();
+      data = await new Promise((resolve, reject) => {
+        parser.parseString(xmlText, (err, result) => {
+          if (err) reject(err);
+          else resolve(result);
+        });
+      });
+    } else {
+      data = await response.json();
+    }
 
     if (data.return && !data.return.error) {
       res.send(`
