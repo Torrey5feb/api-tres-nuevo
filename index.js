@@ -77,7 +77,6 @@ app.post('/cotizar', async (req, res) => {
     console.log('Datos del producto:', JSON.stringify(producto));
 
     const requestData = {
-      action: "ApiCotizacion",
       no_bultos_1: "1",
       contenido_1: "caja",
       peso_1: producto.peso,
@@ -98,15 +97,22 @@ app.post('/cotizar', async (req, res) => {
     };
     console.log('Solicitud a Tres Guerras:', JSON.stringify(requestData));
 
+    // Usar el endpoint de producción con action en la URL
     const apiResponse = await axios.post(
-      'https://intranet.tresguerras.com.mx/WS',
+      'https://intranet.tresguerras.com.mx/WS/api/Customer/JSON/?action=ApiCotizacion',
       requestData,
       {
         timeout: 30000,
         headers: { 'Content-Type': 'application/json' }
       }
     );
-    console.log('Respuesta de la API:', JSON.stringify(apiResponse.data));
+    console.log('Respuesta de la API (cruda):', apiResponse.data);
+
+    // Verificar si la respuesta es un objeto válido
+    if (typeof apiResponse.data !== 'object' || !apiResponse.data.return) {
+      console.error('Respuesta inválida de la API, no es un objeto JSON con "return":', apiResponse.data);
+      throw new Error('La API no devolvió una respuesta JSON válida');
+    }
 
     const total = apiResponse.data.return.total || 'No disponible';
 
