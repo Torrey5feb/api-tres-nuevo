@@ -54,32 +54,31 @@ app.post("/cotizar", async (req, res) => {
   try {
     // Obtener datos del JSON en GitHub
     console.log("Haciendo solicitud a GitHub...");
-    let jsonResponse;
-    try {
-      jsonResponse = await axios.get(
-        "https://raw.githubusercontent.com/Torrey5feb/URLS/refs/heads/main/modelos.json"
-      );
+    const jsonResponse = await axios.get(
+      "https://raw.githubusercontent.com/Torrey5feb/URLS/refs/heads/main/modelos.json"
+    );
+    console.log("Respuesta cruda de GitHub (tipo):", typeof jsonResponse.data);
+    console.log("Respuesta cruda de GitHub:", jsonResponse.data);
+
+    // Parsear manualmente si es una cadena
+    let jsonData = jsonResponse.data;
+    if (typeof jsonResponse.data === "string") {
       console.log(
-        "Respuesta cruda de GitHub:",
-        JSON.stringify(jsonResponse.data)
+        "Parseando JSON manualmente porque se recibió como cadena..."
       );
-    } catch (jsonError) {
-      console.error("Error al obtener JSON de GitHub:", jsonError.message);
-      throw new Error(`Fallo al cargar el JSON: ${jsonError.message}`);
+      jsonData = JSON.parse(jsonResponse.data);
     }
+    console.log("JSON parseado:", JSON.stringify(jsonData));
 
     // Validar estructura del JSON
-    if (!jsonResponse.data || !jsonResponse.data.productos) {
-      console.error(
-        "Estructura del JSON inválida:",
-        JSON.stringify(jsonResponse.data)
-      );
+    if (!jsonData || !jsonData.productos) {
+      console.error("Estructura del JSON inválida:", JSON.stringify(jsonData));
       throw new Error(
         'El JSON no tiene la estructura esperada (falta "productos")'
       );
     }
 
-    const producto = jsonResponse.data.productos[modelo];
+    const producto = jsonData.productos[modelo];
     if (!producto) {
       console.error("Producto no encontrado en el JSON:", modelo);
       throw new Error(`Producto "${modelo}" no encontrado en el JSON`);
