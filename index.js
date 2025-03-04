@@ -41,15 +41,9 @@ app.post("/cotizar", async (req, res) => {
 
   if (!modelo || !cp_destino) {
     console.error("Faltan parámetros: modelo o cp_destino");
-    return res.send(`
-      <html>
-        <body>
-          <h3>Error</h3>
-          <p>Faltan datos requeridos</p>
-          <button onclick="window.close()">Cerrar</button>
-        </body>
-      </html>
-    `);
+    return res.send(
+      `<html><body><h3>Error</h3><p>Faltan datos requeridos</p><button onclick="window.close()">Cerrar</button></body></html>`
+    );
   }
 
   try {
@@ -121,7 +115,7 @@ app.post("/cotizar", async (req, res) => {
     console.log("Solicitud SOAP XML a Tres Guerras:", soapRequest);
 
     const apiResponse = await axios.post(
-      "https://intranet.tresguerras.com.mx/WS/api/Customer/XML/ws_Api.php",
+      "https://www.tresguerras.com.mx/3G/cotizadorcp_Ajax.php", // Nuevo endpoint basado en la captura
       soapRequest,
       {
         timeout: 30000,
