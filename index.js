@@ -1,13 +1,13 @@
-const express = require('express');
-const axios = require('axios');
-const xml2js = require('xml2js');
+const express = require("express");
+const axios = require("axios");
+const xml2js = require("xml2js");
 const app = express();
 const port = process.env.PORT || 3000;
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-app.get('/cotizar', async (req, res) => {
+app.get("/cotizar", async (req, res) => {
   const modelo = req.query.modelo;
   console.log(`GET /cotizar - Modelo recibido: ${modelo}`);
   res.send(`
@@ -34,13 +34,13 @@ app.get('/cotizar', async (req, res) => {
   `);
 });
 
-app.post('/cotizar', async (req, res) => {
+app.post("/cotizar", async (req, res) => {
   const modelo = req.body.modelo;
   const cp_destino = req.body.cp_destino;
   console.log(`POST /cotizar - Modelo: ${modelo}, CP Destino: ${cp_destino}`);
 
   if (!modelo || !cp_destino) {
-    console.error('Faltan parámetros: modelo o cp_destino');
+    console.error("Faltan parámetros: modelo o cp_destino");
     return res.send(`
       <html>
         <body>
@@ -53,31 +53,37 @@ app.post('/cotizar', async (req, res) => {
   }
 
   try {
-    console.log('Haciendo solicitud a GitHub...');
-    const jsonResponse = await axios.get('https://raw.githubusercontent.com/Torrey5feb/URLS/refs/heads/main/modelos.json?t=' + Date.now());
-    console.log('Respuesta cruda de GitHub (tipo):', typeof jsonResponse.data);
-    console.log('Respuesta cruda de GitHub:', jsonResponse.data);
+    console.log("Haciendo solicitud a GitHub...");
+    const jsonResponse = await axios.get(
+      "https://raw.githubusercontent.com/Torrey5feb/URLS/refs/heads/main/modelos.json?t=" +
+        Date.now()
+    );
+    console.log("Respuesta cruda de GitHub (tipo):", typeof jsonResponse.data);
+    console.log("Respuesta cruda de GitHub:", jsonResponse.data);
 
     let jsonData = jsonResponse.data;
-    if (typeof jsonResponse.data === 'string') {
-      console.log('Parseando JSON manualmente porque se recibió como cadena...');
+    if (typeof jsonResponse.data === "string") {
+      console.log(
+        "Parseando JSON manualmente porque se recibió como cadena..."
+      );
       jsonData = JSON.parse(jsonResponse.data);
     }
-    console.log('JSON parseado:', JSON.stringify(jsonData));
+    console.log("JSON parseado:", JSON.stringify(jsonData));
 
     if (!jsonData || !jsonData.productos) {
-      console.error('Estructura del JSON inválida:', JSON.stringify(jsonData));
-      throw new Error('El JSON no tiene la estructura esperada (falta "productos")');
+      console.error("Estructura del JSON inválida:", JSON.stringify(jsonData));
+      throw new Error(
+        'El JSON no tiene la estructura esperada (falta "productos")'
+      );
     }
 
     const producto = jsonData.productos[modelo];
     if (!producto) {
-      console.error('Producto no encontrado en el JSON:', modelo);
+      console.error("Producto no encontrado en el JSON:", modelo);
       throw new Error(`Producto "${modelo}" no encontrado en el JSON`);
     }
-    console.log('Datos del producto:', JSON.stringify(producto));
+    console.log("Datos del producto:", JSON.stringify(producto));
 
-    // Construir solicitud SOAP XML
     const soapRequest = `
       <soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:urn="urn:ws_customer">
         <soapenv:Header/>
@@ -96,9 +102,15 @@ app.post('/cotizar', async (req, res) => {
               <urn:bandera_ead>S</urn:bandera_ead>
               <urn:retencion_iva_cliente>N</urn:retencion_iva_cliente>
               <urn:valor_declarado>${producto.precio}</urn:valor_declarado>
-              <urn:referencia>${producto.referencia || "Compra por defecto"}</urn:referencia>
-              <urn:colonia_rem>${producto.colonia_rem || "Centro"}</urn:colonia_rem>
-              <urn:colonia_des>${producto.colonia_des || "Centro"}</urn:colonia_des>
+              <urn:referencia>${
+                producto.referencia || "Compra por defecto"
+              }</urn:referencia>
+              <urn:colonia_rem>${
+                producto.colonia_rem || "Centro"
+              }</urn:colonia_rem>
+              <urn:colonia_des>${
+                producto.colonia_des || "Centro"
+              }</urn:colonia_des>
               <urn:Access_Usr>API00162</urn:Access_Usr>
               <urn:Access_Pass>VVZaQ1NrMUVRWGhPYWtwRVZEQTFWVlZyUmxSU1kwOVNVVlZHUkZaR1RrSlRNRlph</urn:Access_Pass>
             </urn:DatosForm>
@@ -106,27 +118,27 @@ app.post('/cotizar', async (req, res) => {
         </soapenv:Body>
       </soapenv:Envelope>
     `;
-    console.log('Solicitud SOAP XML a Tres Guerras:', soapRequest);
+    console.log("Solicitud SOAP XML a Tres Guerras:", soapRequest);
 
-    // Enviar solicitud SOAP XML
     const apiResponse = await axios.post(
-      'https://intranet.tresguerras.com.mx/WS/api/Customer/XML/ws_Api.php',
+      "https://intranet.tresguerras.com.mx/WS/api/Customer/XML/ws_Api.php",
       soapRequest,
       {
         timeout: 30000,
-        headers: { 'Content-Type': 'text/xml' }
+        headers: { "Content-Type": "text/xml" },
       }
     );
-    console.log('Código de estado HTTP:', apiResponse.status);
-    console.log('Respuesta de la API (cruda):', apiResponse.data);
+    console.log("Código de estado HTTP:", apiResponse.status);
+    console.log("Respuesta de la API (cruda):", apiResponse.data);
 
-    // Parsear la respuesta XML
     const parser = new xml2js.Parser({ explicitArray: false });
     const parsedResponse = await parser.parseStringPromise(apiResponse.data);
-    console.log('Respuesta XML parseada:', JSON.stringify(parsedResponse));
+    console.log("Respuesta XML parseada:", JSON.stringify(parsedResponse));
 
-    // Extraer el total
-    const total = parsedResponse['SOAP-ENV:Envelope']['SOAP-ENV:Body']['ApiCotizacionResponse']['return']['total'] || 'No disponible';
+    const total =
+      parsedResponse["SOAP-ENV:Envelope"]["SOAP-ENV:Body"][
+        "ApiCotizacionResponse"
+      ]["return"]["total"] || "No disponible";
 
     res.send(`
       <html>
@@ -146,9 +158,9 @@ app.post('/cotizar', async (req, res) => {
     `);
   } catch (error) {
     const errorMsg = error.response?.data || error.message;
-    console.error('Error al calcular costo:', errorMsg);
-    console.error('Código de estado HTTP (si aplica):', error.response?.status);
-    console.error('Detalles del error:', error.stack);
+    console.error("Error al calcular costo:", errorMsg);
+    console.error("Código de estado HTTP (si aplica):", error.response?.status);
+    console.error("Detalles del error:", error.stack);
 
     res.send(`
       <html>
