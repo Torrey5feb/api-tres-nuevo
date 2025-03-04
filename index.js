@@ -1,137 +1,118 @@
 const express = require("express");
-const cors = require("cors");
-const fetch = require("node-fetch");
-const xml2js = require("xml2js");
-
+const axios = require("axios");
 const app = express();
-const PORT = process.env.PORT || 3000;
+const port = process.env.PORT || 3000;
 
-app.use(cors());
-app.use(express.urlencoded({ extended: true })); // Para form-urlencoded
-app.use(express.json()); // Para JSON (opcional, por si el frontend cambia)
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 
-const TRESGUERRAS_API_URL =
-  "https://intranet.tresguerras.com.mx/WS/api/Customer/XML/ws_Api.php";
-const ACCESS_USR = "API00162";
-const ACCESS_PASS =
-  "VVZaQ1NrMUVRWGhPYWtwRVZEQTFWVlZyUmxSU1kwOVNVVlZHUkZaR1RrSlRNRlph";
+// Ruta para mostrar la ventana emergente
+app.get("/cotizar", async (req, res) => {
+  const modelo = req.query.modelo; // "TVC17"
+  res.send(`
+    <html>
+      <head>
+        <title>Calcular costo de envío</title>
+        <style>
+          body { font-family: Arial, sans-serif; padding: 20px; }
+          input[type="text"] { width: 100%; padding: 8px; margin: 10px 0; }
+          button { padding: 10px 20px; background-color: #007bff; color: white; border: none; cursor: pointer; }
+          button:hover { background-color: #0056b3; }
+        </style>
+      </head>
+      <body>
+        <h3>Calcular costo de envío</h3>
+        <form method="POST" action="/cotizar">
+          <input type="hidden" name="modelo" value="${modelo}">
+          <label>Código postal de destino:</label>
+          <input type="text" name="cp_destino" maxlength="6" pattern="[0-9]{5}" required placeholder="Ej. 54000">
+          <button type="submit">Calcular</button>
+        </form>
+      </body>
+    </html>
+  `);
+});
 
-async function obtenerDatosProducto(modelo) {
-  try {
-    console.log(`Obteniendo datos para el modelo: ${modelo}`);
-    const response = await fetch(
-      "https://raw.githubusercontent.com/Torrey5feb/URLS/refs/heads/main/modelos.json",
-      {
-        timeout: 30000, // Aumentado a 30 segundos según la documentación
-      }
-    );
-    if (!response.ok)
-      throw new Error(`HTTP error al obtener modelos: ${response.status}`);
-    const jsonData = await response.json();
-    return jsonData.productos[modelo] || null;
-  } catch (error) {
-    console.error("Error al obtener el JSON de productos:", error);
-    return null;
-  }
-}
-
+// Ruta para procesar el formulario y llamar a la API
 app.post("/cotizar", async (req, res) => {
-  console.log("Solicitud POST recibida en /cotizar con datos:", req.body);
-  const { modelo, cp_destino } = req.body;
-
-  if (!modelo || !cp_destino) {
-    return res.send("<h3>Error: Faltan datos (modelo o CP).</h3>");
-  }
-
-  const productoData = await obtenerDatosProducto(modelo);
-  if (!productoData) {
-    return res.send(
-      "<h3>Error: Modelo no encontrado en la base de datos.</h3>"
-    );
-  }
-
-  const requestData = {
-    Access_Usr: ACCESS_USR,
-    Access_Pass: ACCESS_PASS,
-    cp_origen: "76159", // Código postal de origen fijo según tu indicación
-    cp_destino: cp_destino,
-    no_bultos_1: "1",
-    contenido_1: productoData.nombre || "Báscula Torrey 40kg",
-    peso_1: String(productoData.peso || 50), // Usar 50 para TVC17
-    alto_1: String(productoData.alto || 1.8), // Usar 1.8 para TVC17
-    largo_1: String(productoData.largo || 0.9), // Usar 0.9 para TVC17
-    ancho_1: String(productoData.ancho || 0.9), // Usar 0.9 para TVC17
-    bandera_recoleccion: "S",
-    bandera_ead: "S",
-    retencion_iva_cliente: "N",
-    valor_declarado: String(productoData.precio || 2500), // Usar 2500 para TVC17
-    referencia: `cotizaprod_${Date.now()}`,
-    colonia_rem: "DESCONOCIDA",
-    colonia_des: "DESCONOCIDA",
-  };
-
-  console.log(
-    "Código postal recibido en el servidor (raw):",
-    req.body.cp_destino
-  );
-  console.log("Código postal procesado:", cp_destino);
-  console.log("Datos enviados a Tresguerras:", requestData);
+  const modelo = req.body.modelo;
+  const cp_destino = req.body.cp_destino;
 
   try {
-    const response = await fetch(TRESGUERRAS_API_URL, {
-      method: "POST",
-      headers: { "Content-Type": "application/x-www-form-urlencoded" },
-      body: new URLSearchParams(requestData).toString(),
-      timeout: 30000,
-    });
+    // Obtener datos del JSON en GitHub
+    const jsonResponse = await axios.get(
+      "https://raw.githubusercontent.com/Torrey5feb/URLS/refs/heads/main/modelos.json"
+    );
+    const producto = jsonResponse.data.productos[modelo];
 
-    if (!response.ok) {
-      throw new Error(
-        `HTTP error: ${response.status} - ${response.statusText}`
-      );
-    }
+    // Construir solicitud a Tres Guerras
+    const requestData = {
+      no_bultos_1: "1",
+      contenido_1: "caja",
+      peso_1: producto.peso, // "50"
+      alto_1: producto.alto, // "1.8"
+      largo_1: producto.largo, // "0.9"
+      ancho_1: producto.ancho, // "0.9"
+      cp_origen: "76159",
+      cp_destino: cp_destino,
+      bandera_recoleccion: "N",
+      bandera_ead: "S",
+      retencion_iva_cliente: "N",
+      valor_declarado: producto.precio, // "2500"
+      Access_Usr: "API00162",
+      Access_Pass:
+        "VVZaQ1NrMUVRWGhPYWtwRVZEQTFWVlZyUmxSU1kwOVNVVlZHUkZaR1RrSlRNRlph",
+    };
 
-    const xmlText = await response.text(); // Esperamos XML como respuesta
-    console.log("Respuesta XML de Tresguerras:", xmlText);
-    const parser = new xml2js.Parser({ explicitArray: false });
-    const data = await new Promise((resolve, reject) => {
-      parser.parseString(xmlText, (err, result) => {
-        if (err) reject(err);
-        else resolve(result);
-      });
-    });
+    // Llamar a la API de Tres Guerras
+    const apiResponse = await axios.post(
+      "https://intranet.tresguerras.com.mx/WS/apiTest/Customer/JSON/?action=ApiCotizacion",
+      requestData,
+      { timeout: 30000 }
+    );
 
-    if (data.return && !data.return.error) {
-      res.send(`
-        <!DOCTYPE html>
-        <html>
+    const total = apiResponse.data.return.total || "No disponible";
+
+    // Mostrar resultado
+    res.send(`
+      <html>
         <head>
-          <title>Resultado del Envío</title>
           <style>
             body { font-family: Arial, sans-serif; padding: 20px; text-align: center; }
+            button { padding: 10px 20px; background-color: #007bff; color: white; border: none; cursor: pointer; }
+            button:hover { background-color: #0056b3; }
           </style>
         </head>
         <body>
-          <h3>Resultado para ${encodeURIComponent(modelo)}</h3>
-          <p>Costo de envío: $${data.return.total || "0"} MXN</p>
-          <p>Días de tránsito: ${data.return.dias_transito || "N/A"}</p>
+          <h3>Costo de envío</h3>
+          <p>Total: $${total}</p>
           <button onclick="window.close()">Cerrar</button>
         </body>
-        </html>
-      `);
-    } else {
-      res.send(
-        `<h3>Error en la cotización</h3><p>${
-          data.return?.error || "Respuesta inesperada"
-        }</p>`
-      );
-    }
+      </html>
+    `);
   } catch (error) {
-    console.error("Error en la API:", error);
-    res.send(`<h3>Error al procesar la cotización</h3><p>${error.message}</p>`);
+    const errorMsg =
+      error.response?.data?.return?.descripcion_error || error.message;
+    res.send(`
+      <html>
+        <head>
+          <style>
+            body { font-family: Arial, sans-serif; padding: 20px; text-align: center; }
+            p { color: red; }
+            button { padding: 10px 20px; background-color: #dc3545; color: white; border: none; cursor: pointer; }
+            button:hover { background-color: #c82333; }
+          </style>
+        </head>
+        <body>
+          <h3>Error</h3>
+          <p>No se pudo calcular el costo: ${errorMsg}</p>
+          <button onclick="window.close()">Cerrar</button>
+        </body>
+      </html>
+    `);
   }
 });
 
-app.listen(PORT, () => {
-  console.log(`Servidor funcionando en Railway en el puerto ${PORT}`);
+app.listen(port, () => {
+  console.log(`Servidor corriendo en puerto ${port}`);
 });
