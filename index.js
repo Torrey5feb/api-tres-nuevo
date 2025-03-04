@@ -1,6 +1,5 @@
 const express = require("express");
 const axios = require("axios");
-const xml2js = require("xml2js");
 const app = express();
 const port = process.env.PORT || 3000;
 
@@ -78,61 +77,45 @@ app.post("/cotizar", async (req, res) => {
     }
     console.log("Datos del producto:", JSON.stringify(producto));
 
-    const soapRequest = `
-      <soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:urn="urn:ws_customer">
-        <soapenv:Header/>
-        <soapenv:Body>
-          <urn:ApiCotizacion>
-            <urn:DatosForm>
-              <urn:no_bultos_1>1</urn:no_bultos_1>
-              <urn:contenido_1>caja</urn:contenido_1>
-              <urn:peso_1>${producto.peso}</urn:peso_1>
-              <urn:alto_1>${producto.alto}</urn:alto_1>
-              <urn:largo_1>${producto.largo}</urn:largo_1>
-              <urn:ancho_1>${producto.ancho}</urn:ancho_1>
-              <urn:cp_origen>76159</urn:cp_origen>
-              <urn:cp_destino>${cp_destino}</urn:cp_destino>
-              <urn:bandera_recoleccion>N</urn:bandera_recoleccion>
-              <urn:bandera_ead>S</urn:bandera_ead>
-              <urn:retencion_iva_cliente>N</urn:retencion_iva_cliente>
-              <urn:valor_declarado>${producto.precio}</urn:valor_declarado>
-              <urn:referencia>${
-                producto.referencia || "Compra por defecto"
-              }</urn:referencia>
-              <urn:colonia_rem>${
-                producto.colonia_rem || "Centro"
-              }</urn:colonia_rem>
-              <urn:colonia_des>${
-                producto.colonia_des || "Centro"
-              }</urn:colonia_des>
-              <urn:Access_Usr>API00162</urn:Access_Usr>
-              <urn:Access_Pass>VVZaQ1NrMUVRWGhPYWtwRVZEQTFWVlZyUmxSU1kwOVNVVlZHUkZaR1RrSlRNRlph</urn:Access_Pass>
-            </urn:DatosForm>
-          </urn:ApiCotizacion>
-        </soapenv:Body>
-      </soapenv:Envelope>
-    `;
-    console.log("Solicitud SOAP XML a Tres Guerras:", soapRequest);
+    const requestData = {
+      no_bultos_1: "1",
+      contenido_1: "caja",
+      peso_1: producto.peso,
+      alto_1: producto.alto,
+      largo_1: producto.largo,
+      ancho_1: producto.ancho,
+      cp_origen: "76159",
+      cp_destino: cp_destino,
+      bandera_recoleccion: "N",
+      bandera_ead: "S",
+      retencion_iva_cliente: "N",
+      valor_declarado: producto.precio,
+      referencia: producto.referencia || "Compra por defecto",
+      colonia_rem: producto.colonia_rem || "Centro",
+      colonia_des: producto.colonia_des || "Centro",
+      Access_Usr: "API00162",
+      Access_Pass:
+        "VVZaQ1NrMUVRWGhPYWtwRVZEQTFWVlZyUmxSU1kwOVNVVlZHUkZaR1RrSlRNRlph",
+    };
+    console.log("Solicitud JSON a Tres Guerras:", JSON.stringify(requestData));
 
     const apiResponse = await axios.post(
-      "https://www.tresguerras.com.mx/3G/cotizadorcp_Ajax.php", // Nuevo endpoint basado en la captura
-      soapRequest,
+      "https://extranet.tresguerras.com.mx/EXTRANET/xdco21_Ajax.php", // Nuevo endpoint basado en la captura
+      requestData,
       {
         timeout: 30000,
-        headers: { "Content-Type": "text/xml" },
+        headers: { "Content-Type": "application/json" },
       }
     );
     console.log("Código de estado HTTP:", apiResponse.status);
     console.log("Respuesta de la API (cruda):", apiResponse.data);
 
-    const parser = new xml2js.Parser({ explicitArray: false });
-    const parsedResponse = await parser.parseStringPromise(apiResponse.data);
-    console.log("Respuesta XML parseada:", JSON.stringify(parsedResponse));
-
+    // Asumimos que la respuesta podría ser JSON con un campo 'total' o 'precio'
     const total =
-      parsedResponse["SOAP-ENV:Envelope"]["SOAP-ENV:Body"][
-        "ApiCotizacionResponse"
-      ]["return"]["total"] || "No disponible";
+      apiResponse.data.total ||
+      apiResponse.data.return?.total ||
+      apiResponse.data.precio ||
+      "No disponible";
 
     res.send(`
       <html>
