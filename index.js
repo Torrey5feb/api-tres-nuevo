@@ -6,9 +6,9 @@ const port = process.env.PORT || 3000;
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Ruta para mostrar la ventana emergente
 app.get("/cotizar", async (req, res) => {
-  const modelo = req.query.modelo; // "TVC17"
+  const modelo = req.query.modelo;
+  console.log(`GET /cotizar - Modelo recibido: ${modelo}`);
   res.send(`
     <html>
       <head>
@@ -33,10 +33,10 @@ app.get("/cotizar", async (req, res) => {
   `);
 });
 
-// Ruta para procesar el formulario y llamar a la API
 app.post("/cotizar", async (req, res) => {
   const modelo = req.body.modelo;
   const cp_destino = req.body.cp_destino;
+  console.log(`POST /cotizar - Modelo: ${modelo}, CP Destino: ${cp_destino}`);
 
   try {
     // Obtener datos del JSON en GitHub
@@ -44,25 +44,30 @@ app.post("/cotizar", async (req, res) => {
       "https://raw.githubusercontent.com/Torrey5feb/URLS/refs/heads/main/modelos.json"
     );
     const producto = jsonResponse.data.productos[modelo];
+    console.log("Datos del JSON:", JSON.stringify(producto));
 
     // Construir solicitud a Tres Guerras
     const requestData = {
       no_bultos_1: "1",
       contenido_1: "caja",
-      peso_1: producto.peso, // "50"
-      alto_1: producto.alto, // "1.8"
-      largo_1: producto.largo, // "0.9"
-      ancho_1: producto.ancho, // "0.9"
+      peso_1: producto.peso,
+      alto_1: producto.alto,
+      largo_1: producto.largo,
+      ancho_1: producto.ancho,
       cp_origen: "76159",
       cp_destino: cp_destino,
       bandera_recoleccion: "N",
       bandera_ead: "S",
       retencion_iva_cliente: "N",
-      valor_declarado: producto.precio, // "2500"
+      valor_declarado: producto.precio,
+      colonia_rem: producto.colonia_rem || "Centro", // Usar valor por defecto si no está en el JSON
+      colonia_des: producto.colonia_des || "Centro", // Usar valor por defecto si no está en el JSON
+      referencia: producto.referencia || "Compra por defecto",
       Access_Usr: "API00162",
       Access_Pass:
         "VVZaQ1NrMUVRWGhPYWtwRVZEQTFWVlZyUmxSU1kwOVNVVlZHUkZaR1RrSlRNRlph",
     };
+    console.log("Solicitud a Tres Guerras:", JSON.stringify(requestData));
 
     // Llamar a la API de Tres Guerras
     const apiResponse = await axios.post(
@@ -70,10 +75,10 @@ app.post("/cotizar", async (req, res) => {
       requestData,
       { timeout: 30000 }
     );
+    console.log("Respuesta de la API:", JSON.stringify(apiResponse.data));
 
     const total = apiResponse.data.return.total || "No disponible";
 
-    // Mostrar resultado
     res.send(`
       <html>
         <head>
@@ -93,6 +98,12 @@ app.post("/cotizar", async (req, res) => {
   } catch (error) {
     const errorMsg =
       error.response?.data?.return?.descripcion_error || error.message;
+    console.error("Error al calcular costo:", errorMsg);
+    console.error(
+      "Detalles del error:",
+      error.response ? JSON.stringify(error.response.data) : error.stack
+    );
+
     res.send(`
       <html>
         <head>
