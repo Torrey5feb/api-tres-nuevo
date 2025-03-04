@@ -1,5 +1,6 @@
 const express = require('express');
 const axios = require('axios');
+const xml2js = require('xml2js');
 const app = express();
 const port = process.env.PORT || 3000;
 
@@ -76,45 +77,56 @@ app.post('/cotizar', async (req, res) => {
     }
     console.log('Datos del producto:', JSON.stringify(producto));
 
-    const requestData = {
-      no_bultos_1: "1",
-      contenido_1: "caja",
-      peso_1: producto.peso,
-      alto_1: producto.alto,
-      largo_1: producto.largo,
-      ancho_1: producto.ancho,
-      cp_origen: "76159",
-      cp_destino: cp_destino,
-      bandera_recoleccion: "N",
-      bandera_ead: "S",
-      retencion_iva_cliente: "N",
-      valor_declarado: producto.precio,
-      colonia_rem: producto.colonia_rem || "Centro",
-      colonia_des: producto.colonia_des || "Centro",
-      referencia: producto.referencia || "Compra por defecto",
-      Access_Usr: "API00162",
-      Access_Pass: "VVZaQ1NrMUVRWGhPYWtwRVZEQTFWVlZyUmxSU1kwOVNVVlZHUkZaR1RrSlRNRlph"
-    };
-    console.log('Solicitud a Tres Guerras:', JSON.stringify(requestData));
+    // Construir solicitud SOAP XML
+    const soapRequest = `
+      <soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/" xmlns:urn="urn:ws_customer">
+        <soapenv:Header/>
+        <soapenv:Body>
+          <urn:ApiCotizacion>
+            <urn:DatosForm>
+              <urn:no_bultos_1>1</urn:no_bultos_1>
+              <urn:contenido_1>caja</urn:contenido_1>
+              <urn:peso_1>${producto.peso}</urn:peso_1>
+              <urn:alto_1>${producto.alto}</urn:alto_1>
+              <urn:largo_1>${producto.largo}</urn:largo_1>
+              <urn:ancho_1>${producto.ancho}</urn:ancho_1>
+              <urn:cp_origen>76159</urn:cp_origen>
+              <urn:cp_destino>${cp_destino}</urn:cp_destino>
+              <urn:bandera_recoleccion>N</urn:bandera_recoleccion>
+              <urn:bandera_ead>S</urn:bandera_ead>
+              <urn:retencion_iva_cliente>N</urn:retencion_iva_cliente>
+              <urn:valor_declarado>${producto.precio}</urn:valor_declarado>
+              <urn:referencia>${producto.referencia || "Compra por defecto"}</urn:referencia>
+              <urn:colonia_rem>${producto.colonia_rem || "Centro"}</urn:colonia_rem>
+              <urn:colonia_des>${producto.colonia_des || "Centro"}</urn:colonia_des>
+              <urn:Access_Usr>API00162</urn:Access_Usr>
+              <urn:Access_Pass>VVZaQ1NrMUVRWGhPYWtwRVZEQTFWVlZyUmxSU1kwOVNVVlZHUkZaR1RrSlRNRlph</urn:Access_Pass>
+            </urn:DatosForm>
+          </urn:ApiCotizacion>
+        </soapenv:Body>
+      </soapenv:Envelope>
+    `;
+    console.log('Solicitud SOAP XML a Tres Guerras:', soapRequest);
 
-    // Usar el endpoint de producción con action en la URL
+    // Enviar solicitud SOAP XML
     const apiResponse = await axios.post(
-      'https://intranet.tresguerras.com.mx/WS/api/Customer/JSON/?action=ApiCotizacion',
-      requestData,
+      'https://intranet.tresguerras.com.mx/WS/api/Customer/XML/ws_Api.php',
+      soapRequest,
       {
         timeout: 30000,
-        headers: { 'Content-Type': 'application/json' }
+        headers: { 'Content-Type': 'text/xml' }
       }
     );
+    console.log('Código de estado HTTP:', apiResponse.status);
     console.log('Respuesta de la API (cruda):', apiResponse.data);
 
-    // Verificar si la respuesta es un objeto válido
-    if (typeof apiResponse.data !== 'object' || !apiResponse.data.return) {
-      console.error('Respuesta inválida de la API, no es un objeto JSON con "return":', apiResponse.data);
-      throw new Error('La API no devolvió una respuesta JSON válida');
-    }
+    // Parsear la respuesta XML
+    const parser = new xml2js.Parser({ explicitArray: false });
+    const parsedResponse = await parser.parseStringPromise(apiResponse.data);
+    console.log('Respuesta XML parseada:', JSON.stringify(parsedResponse));
 
-    const total = apiResponse.data.return.total || 'No disponible';
+    // Extraer el total
+    const total = parsedResponse['SOAP-ENV:Envelope']['SOAP-ENV:Body']['ApiCotizacionResponse']['return']['total'] || 'No disponible';
 
     res.send(`
       <html>
@@ -133,9 +145,10 @@ app.post('/cotizar', async (req, res) => {
       </html>
     `);
   } catch (error) {
-    const errorMsg = error.response?.data?.return?.descripcion_error || error.message;
+    const errorMsg = error.response?.data || error.message;
     console.error('Error al calcular costo:', errorMsg);
-    console.error('Detalles del error:', error.response ? JSON.stringify(error.response.data) : error.stack);
+    console.error('Código de estado HTTP (si aplica):', error.response?.status);
+    console.error('Detalles del error:', error.stack);
 
     res.send(`
       <html>
