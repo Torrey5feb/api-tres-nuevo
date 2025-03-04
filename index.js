@@ -4,6 +4,7 @@ const app = express();
 const port = process.env.PORT || 3000;
 
 app.use(express.json());
+app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 app.get('/cotizar', async (req, res) => {
@@ -11,6 +12,24 @@ app.get('/cotizar', async (req, res) => {
   console.log(`GET /cotizar - Modelo recibido: ${modelo}`);
   res.send(`
     <html>
+      <head>
+        <title>Calcular costo de envío</title>
+        <style>
+          body { font-family: Arial, sans-serif; padding: 20px; }
+          input[type="text"] { width: 100%; padding: 8px; margin: 10px 0; }
+          button { padding: 10px 20px; background-color: #007bff; color: white; border: none; cursor: pointer; }
+          button:hover { background-color: #0056b3; }
+        </style>
+      </head>
+      <body>
+        <h3>Calcular costo de envío</h3>
+        <form method="POST" action="/cotizar">
+          <input type="hidden" name="modelo" value="${modelo}">
+          <label>Código postal de destino:</label>
+          <input type="text" name="cp_destino" maxlength="6" pattern="[0-9]{5}" required placeholder="Ej. 54000">
+          <button type="submit">Calcular</button>
+        </form>
+      </body>
       <head>
         <title>Calcular costo de envío</title>
         <style>
@@ -118,13 +137,19 @@ app.post('/cotizar', async (req, res) => {
             body { font-family: Arial, sans-serif; padding: 20px; text-align: center; }
             button { padding: 10px 20px; background-color: #007bff; color: white; border: none; cursor: pointer; }
             button:hover { background-color: #0056b3; }
+            button { padding: 10px 20px; background-color: #007bff; color: white; border: none; cursor: pointer; }
+            button:hover { background-color: #0056b3; }
           </style>
         </head>
         <body>
           <h3>Costo de envío</h3>
           <p>Total: $${total}</p>
+          <h3>Costo de envío</h3>
+          <p>Total: $${total}</p>
           <button onclick="window.close()">Cerrar</button>
         </body>
+      </html>
+    `);
       </html>
     `);
   } catch (error) {
@@ -152,6 +177,8 @@ app.post('/cotizar', async (req, res) => {
   }
 });
 
+app.listen(port, () => {
+  console.log(`Servidor corriendo en puerto ${port}`);
 app.listen(port, () => {
   console.log(`Servidor corriendo en puerto ${port}`);
 });
