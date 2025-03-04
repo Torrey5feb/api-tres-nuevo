@@ -38,13 +38,53 @@ app.post("/cotizar", async (req, res) => {
   const cp_destino = req.body.cp_destino;
   console.log(`POST /cotizar - Modelo: ${modelo}, CP Destino: ${cp_destino}`);
 
+  if (!modelo || !cp_destino) {
+    console.error("Faltan parámetros: modelo o cp_destino");
+    return res.send(`
+      <html>
+        <body>
+          <h3>Error</h3>
+          <p>Faltan datos requeridos</p>
+          <button onclick="window.close()">Cerrar</button>
+        </body>
+      </html>
+    `);
+  }
+
   try {
     // Obtener datos del JSON en GitHub
-    const jsonResponse = await axios.get(
-      "https://raw.githubusercontent.com/Torrey5feb/URLS/refs/heads/main/modelos.json"
-    );
+    console.log("Haciendo solicitud a GitHub...");
+    let jsonResponse;
+    try {
+      jsonResponse = await axios.get(
+        "https://raw.githubusercontent.com/Torrey5feb/URLS/refs/heads/main/modelos.json"
+      );
+      console.log(
+        "Respuesta cruda de GitHub:",
+        JSON.stringify(jsonResponse.data)
+      );
+    } catch (jsonError) {
+      console.error("Error al obtener JSON de GitHub:", jsonError.message);
+      throw new Error(`Fallo al cargar el JSON: ${jsonError.message}`);
+    }
+
+    // Validar estructura del JSON
+    if (!jsonResponse.data || !jsonResponse.data.productos) {
+      console.error(
+        "Estructura del JSON inválida:",
+        JSON.stringify(jsonResponse.data)
+      );
+      throw new Error(
+        'El JSON no tiene la estructura esperada (falta "productos")'
+      );
+    }
+
     const producto = jsonResponse.data.productos[modelo];
-    console.log("Datos del JSON:", JSON.stringify(producto));
+    if (!producto) {
+      console.error("Producto no encontrado en el JSON:", modelo);
+      throw new Error(`Producto "${modelo}" no encontrado en el JSON`);
+    }
+    console.log("Datos del producto:", JSON.stringify(producto));
 
     // Construir solicitud a Tres Guerras
     const requestData = {
@@ -60,8 +100,8 @@ app.post("/cotizar", async (req, res) => {
       bandera_ead: "S",
       retencion_iva_cliente: "N",
       valor_declarado: producto.precio,
-      colonia_rem: producto.colonia_rem || "Centro", // Usar valor por defecto si no está en el JSON
-      colonia_des: producto.colonia_des || "Centro", // Usar valor por defecto si no está en el JSON
+      colonia_rem: producto.colonia_rem || "Centro",
+      colonia_des: producto.colonia_des || "Centro",
       referencia: producto.referencia || "Compra por defecto",
       Access_Usr: "API00162",
       Access_Pass:
