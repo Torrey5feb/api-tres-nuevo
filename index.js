@@ -6,13 +6,47 @@ const port = process.env.PORT || 3000;
 
 // Configura CORS para permitir solicitudes desde Tienda Nube
 const corsOptions = {
-  origin: "https://tu-tienda.tiendanube.com", // Reemplaza con el dominio exacto de tu tienda
+  origin: "https://tu-tienda.tiendanube.com", // Reemplaza con el dominio exacto de tu tienda (por ejemplo, "torrey.tiendanube.com")
   optionsSuccessStatus: 200, // Para navegadores antiguos
 };
 app.use(cors(corsOptions));
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+
+// Endpoint para verificar el modelo antes de configurar botones
+app.get("/producto/check", async (req, res) => {
+  const model = req.query.model || "0LPCR40-N"; // Modelo predeterminado
+
+  try {
+    console.log("Verificando modelo:", model); // Log para depuración
+    const jsonResponse = await axios.get(
+      "https://raw.githubusercontent.com/Torrey5feb/URLS/refs/heads/main/modelos.json?t=" +
+        Date.now()
+    );
+    let jsonData = jsonResponse.data;
+
+    if (typeof jsonResponse.data === "string") {
+      jsonData = JSON.parse(jsonResponse.data);
+    }
+
+    if (!jsonData || !jsonData.productos) {
+      throw new Error(
+        'El JSON no tiene la estructura esperada (falta "productos")'
+      );
+    }
+
+    const producto = jsonData.productos[model];
+    if (!producto) {
+      throw new Error(`Producto "${model}" no encontrado en el JSON`);
+    }
+
+    res.json({ status: "ok" });
+  } catch (error) {
+    console.error("Error al verificar el modelo:", error.message);
+    res.status(404).json({ error: "Modelo no encontrado o error en el JSON" });
+  }
+});
 
 // Endpoint para manejar las acciones de los botones
 app.get("/producto/:action", async (req, res) => {
@@ -21,7 +55,6 @@ app.get("/producto/:action", async (req, res) => {
 
   try {
     console.log("Solicitud recibida:", action, model); // Log para depuración
-    // Obtener los datos de modelos.json desde GitHub
     const jsonResponse = await axios.get(
       "https://raw.githubusercontent.com/Torrey5feb/URLS/refs/heads/main/modelos.json?t=" +
         Date.now()
