@@ -6,6 +6,72 @@ const port = process.env.PORT || 3000;
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
+// Endpoint para manejar las acciones de los botones
+app.get("/producto/:action", async (req, res) => {
+  const action = req.params.action;
+  const model = req.query.model || "0LPCR40-N"; // Modelo predeterminado si no se especifica
+
+  try {
+    // Obtener los datos de modelos.json desde GitHub
+    const jsonResponse = await axios.get(
+      "https://raw.githubusercontent.com/Torrey5feb/URLS/refs/heads/main/modelos.json?t=" +
+        Date.now()
+    );
+    let jsonData = jsonResponse.data;
+
+    if (typeof jsonResponse.data === "string") {
+      jsonData = JSON.parse(jsonResponse.data);
+    }
+
+    if (!jsonData || !jsonData.productos) {
+      throw new Error(
+        'El JSON no tiene la estructura esperada (falta "productos")'
+      );
+    }
+
+    const producto = jsonData.productos[model];
+    if (!producto) {
+      throw new Error(`Producto "${model}" no encontrado en el JSON`);
+    }
+
+    const config = jsonData.config || {};
+
+    let url = "";
+    switch (action) {
+      case "llamar":
+        url = config.llamar || "tel:4422171717"; // Valor predeterminado de modelos.json
+        break;
+      case "whatsapp":
+        url = config.whatsapp || "http://wa.me/524422171717"; // Valor predeterminado de modelos.json
+        break;
+      case "visitanos":
+        url =
+          config.indicaciones ||
+          "https://www.google.com/maps/dir/?api=1&destination=20.6154051,-100.4203416&travelmode=driving"; // Valor predeterminado de modelos.json
+        break;
+      case "refacciones":
+        url = producto.refacciones || "#";
+        break;
+      case "manual":
+        url = producto.manual || "#";
+        break;
+      case "ficha_tecnica":
+        url = producto.ficha_tecnica || "#";
+        break;
+      default:
+        throw new Error("Acción no válida");
+    }
+
+    res.json({ url });
+  } catch (error) {
+    console.error("Error al procesar la acción:", error.message);
+    res
+      .status(500)
+      .json({ error: "No se pudo procesar la acción. Inténtalo de nuevo." });
+  }
+});
+
+// Endpoint pausado para cotización de Tres Guerras (mantenido sin cambios por ahora)
 app.get("/cotizar", async (req, res) => {
   const modelo = req.query.modelo;
   console.log(`GET /cotizar - Modelo recibido: ${modelo}`);
@@ -45,118 +111,10 @@ app.post("/cotizar", async (req, res) => {
     );
   }
 
-  try {
-    console.log("Haciendo solicitud a GitHub...");
-    const jsonResponse = await axios.get(
-      "https://raw.githubusercontent.com/Torrey5feb/URLS/refs/heads/main/modelos.json?t=" +
-        Date.now()
-    );
-    console.log("Respuesta cruda de GitHub (tipo):", typeof jsonResponse.data);
-    console.log("Respuesta cruda de GitHub:", jsonResponse.data);
-
-    let jsonData = jsonResponse.data;
-    if (typeof jsonResponse.data === "string") {
-      console.log(
-        "Parseando JSON manualmente porque se recibió como cadena..."
-      );
-      jsonData = JSON.parse(jsonResponse.data);
-    }
-    console.log("JSON parseado:", JSON.stringify(jsonData));
-
-    if (!jsonData || !jsonData.productos) {
-      console.error("Estructura del JSON inválida:", JSON.stringify(jsonData));
-      throw new Error(
-        'El JSON no tiene la estructura esperada (falta "productos")'
-      );
-    }
-
-    const producto = jsonData.productos[modelo];
-    if (!producto) {
-      console.error("Producto no encontrado en el JSON:", modelo);
-      throw new Error(`Producto "${modelo}" no encontrado en el JSON`);
-    }
-    console.log("Datos del producto:", JSON.stringify(producto));
-
-    const requestData = {
-      no_bultos_1: "1",
-      contenido_1: "caja",
-      peso_1: producto.peso,
-      alto_1: producto.alto,
-      largo_1: producto.largo,
-      ancho_1: producto.ancho,
-      cp_origen: "76159",
-      cp_destino: cp_destino,
-      bandera_recoleccion: "N",
-      bandera_ead: "S",
-      retencion_iva_cliente: "N",
-      valor_declarado: producto.precio,
-      referencia: producto.referencia || "Compra por defecto",
-      colonia_rem: producto.colonia_rem || "Centro",
-      colonia_des: producto.colonia_des || "Centro",
-      Access_Usr: "API00162",
-      Access_Pass:
-        "VVZaQ1NrMUVRWGhPYWtwRVZEQTFWVlZyUmxSU1kwOVNVVlZHUkZaR1RrSlRNRlph",
-    };
-    console.log("Solicitud JSON a Tres Guerras:", JSON.stringify(requestData));
-
-    const apiResponse = await axios.post(
-      "https://extranet.tresguerras.com.mx/EXTRANET/xdco21_Ajax.php", // Nuevo endpoint basado en la captura
-      requestData,
-      {
-        timeout: 30000,
-        headers: { "Content-Type": "application/json" },
-      }
-    );
-    console.log("Código de estado HTTP:", apiResponse.status);
-    console.log("Respuesta de la API (cruda):", apiResponse.data);
-
-    // Asumimos que la respuesta podría ser JSON con un campo 'total' o 'precio'
-    const total =
-      apiResponse.data.total ||
-      apiResponse.data.return?.total ||
-      apiResponse.data.precio ||
-      "No disponible";
-
-    res.send(`
-      <html>
-        <head>
-          <style>
-            body { font-family: Arial, sans-serif; padding: 20px; text-align: center; }
-            button { padding: 10px 20px; background-color: #007bff; color: white; border: none; cursor: pointer; }
-            button:hover { background-color: #0056b3; }
-          </style>
-        </head>
-        <body>
-          <h3>Costo de envío</h3>
-          <p>Total: $${total}</p>
-          <button onclick="window.close()">Cerrar</button>
-        </body>
-      </html>
-    `);
-  } catch (error) {
-    const errorMsg = error.response?.data || error.message;
-    console.error("Error al calcular costo:", errorMsg);
-    console.error("Código de estado HTTP (si aplica):", error.response?.status);
-    console.error("Detalles del error:", error.stack);
-
-    res.send(`
-      <html>
-        <head>
-          <style>
-            body { font-family: Arial, sans-serif; padding: 20px; text-align: center; }
-            p { color: red; }
-            button { padding: 10px 20px; background-color: #dc3545; color: white; border: none; cursor: pointer; }
-            button:hover { background-color: #c82333; }
-          </style>
-        </head>
-        <body>
-          <h3>Error</h3>
-          <p>No se pudo calcular el costo: ${errorMsg}</p>
-          <button onclick="window.close()">Cerrar</button>
-        </body>
-      </html>
-    `);
-  }
+  // Lógica pausada hasta recibir info de Tres Guerras
+  res.send(
+    `<html><body><h3>Función pausada</h3><p>Estamos esperando información técnica de Tres Guerras para completar esta funcionalidad.</p><button onclick="window.close()">Cerrar</button></body></html>`
+  );
 });
 
 app.listen(port, () => {
