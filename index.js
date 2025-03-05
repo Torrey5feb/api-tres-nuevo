@@ -1,7 +1,15 @@
 const express = require("express");
 const axios = require("axios");
+const cors = require("cors"); // Instala con `npm install cors`
 const app = express();
 const port = process.env.PORT || 3000;
+
+// Configura CORS para permitir solicitudes desde Tienda Nube
+const corsOptions = {
+  origin: "https://tu-tienda.tiendanube.com", // Reemplaza con el dominio exacto de tu tienda
+  optionsSuccessStatus: 200, // Para navegadores antiguos
+};
+app.use(cors(corsOptions));
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
@@ -12,6 +20,7 @@ app.get("/producto/:action", async (req, res) => {
   const model = req.query.model || "0LPCR40-N"; // Modelo predeterminado si no se especifica
 
   try {
+    console.log("Solicitud recibida:", action, model); // Log para depuración
     // Obtener los datos de modelos.json desde GitHub
     const jsonResponse = await axios.get(
       "https://raw.githubusercontent.com/Torrey5feb/URLS/refs/heads/main/modelos.json?t=" +
@@ -62,6 +71,7 @@ app.get("/producto/:action", async (req, res) => {
         throw new Error("Acción no válida");
     }
 
+    console.log("URL devuelta:", url); // Log para depuración
     res.json({ url });
   } catch (error) {
     console.error("Error al procesar la acción:", error.message);
