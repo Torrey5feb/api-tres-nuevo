@@ -6,47 +6,13 @@ const port = process.env.PORT || 3000;
 
 // Configura CORS para permitir solicitudes desde Tienda Nube
 const corsOptions = {
-  origin: "https://tu-tienda.tiendanube.com", // Reemplaza con el dominio exacto de tu tienda (por ejemplo, "torrey.tiendanube.com")
+  origin: "https://tu-tienda.tiendanube.com", // Reemplaza con el dominio exacto de tu tienda
   optionsSuccessStatus: 200, // Para navegadores antiguos
 };
 app.use(cors(corsOptions));
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
-
-// Endpoint para verificar el modelo antes de configurar botones
-app.get("/producto/check", async (req, res) => {
-  const model = req.query.model || "0LPCR40-N"; // Modelo predeterminado
-
-  try {
-    console.log("Verificando modelo:", model); // Log para depuración
-    const jsonResponse = await axios.get(
-      "https://raw.githubusercontent.com/Torrey5feb/URLS/refs/heads/main/modelos.json?t=" +
-        Date.now()
-    );
-    let jsonData = jsonResponse.data;
-
-    if (typeof jsonResponse.data === "string") {
-      jsonData = JSON.parse(jsonResponse.data);
-    }
-
-    if (!jsonData || !jsonData.productos) {
-      throw new Error(
-        'El JSON no tiene la estructura esperada (falta "productos")'
-      );
-    }
-
-    const producto = jsonData.productos[model];
-    if (!producto) {
-      throw new Error(`Producto "${model}" no encontrado en el JSON`);
-    }
-
-    res.json({ status: "ok" });
-  } catch (error) {
-    console.error("Error al verificar el modelo:", error.message);
-    res.status(404).json({ error: "Modelo no encontrado o error en el JSON" });
-  }
-});
 
 // Endpoint para manejar las acciones de los botones
 app.get("/producto/:action", async (req, res) => {
@@ -79,38 +45,75 @@ app.get("/producto/:action", async (req, res) => {
     const config = jsonData.config || {};
 
     let url = "";
+    let actionName = "";
     switch (action) {
       case "llamar":
-        url = config.llamar || "tel:4422171717"; // Valor predeterminado de modelos.json
+        url = config.llamar || "tel:4422171717";
+        actionName = "Llamar a Tienda";
         break;
       case "whatsapp":
-        url = config.whatsapp || "http://wa.me/524422171717"; // Valor predeterminado de modelos.json
+        url = config.whatsapp || "http://wa.me/524422171717";
+        actionName = "WhatsApp";
         break;
       case "visitanos":
         url =
           config.indicaciones ||
-          "https://www.google.com/maps/dir/?api=1&destination=20.6154051,-100.4203416&travelmode=driving"; // Valor predeterminado de modelos.json
+          "https://www.google.com/maps/dir/?api=1&destination=20.6154051,-100.4203416&travelmode=driving";
+        actionName = "Visítanos";
         break;
       case "refacciones":
         url = producto.refacciones || "#";
+        actionName = "Catálogo de Refacciones";
         break;
       case "manual":
         url = producto.manual || "#";
+        actionName = "Manual de Usuario";
         break;
       case "ficha_tecnica":
         url = producto.ficha_tecnica || "#";
+        actionName = "Ficha Técnica";
         break;
       default:
         throw new Error("Acción no válida");
     }
 
     console.log("URL devuelta:", url); // Log para depuración
-    res.json({ url });
+
+    // Devolver una página HTML con un botón o enlace para abrir la URL
+    res.send(`
+      <html>
+        <head>
+          <title>${actionName}</title>
+          <style>
+            body { font-family: Arial, sans-serif; padding: 20px; text-align: center; }
+            a, button { padding: 10px 20px; background-color: #007bff; color: white; border: none; border-radius: 8px; cursor: pointer; text-decoration: none; display: inline-block; }
+            a:hover, button:hover { background-color: #0056b3; }
+          </style>
+        </head>
+        <body>
+          <h3>${actionName}</h3>
+          <p>Haz clic en el botón para abrir el enlace:</p>
+          <a href="${url}" target="_blank">${actionName}</a>
+          <script>
+            // Abrir automáticamente si la URL no es '#'
+            if ('${url}' !== '#') {
+              window.location.href = '${url}';
+            }
+          </script>
+        </body>
+      </html>
+    `);
   } catch (error) {
     console.error("Error al procesar la acción:", error.message);
-    res
-      .status(500)
-      .json({ error: "No se pudo procesar la acción. Inténtalo de nuevo." });
+    res.status(500).send(`
+      <html>
+        <body>
+          <h3>Error</h3>
+          <p>No se pudo completar la acción: ${error.message}</p>
+          <button onclick="window.close()">Cerrar</button>
+        </body>
+      </html>
+    `);
   }
 });
 
