@@ -1,6 +1,16 @@
 const express = require("express");
 const fetch = require("node-fetch");
+const cors = require("cors"); // Importa cors
 const app = express();
+
+// Configura CORS para permitir solicitudes desde torrey.store
+app.use(
+  cors({
+    origin: "https://torrey.store", // Permite solo este origen
+    methods: ["POST"], // Permite solo POST (ajusta si necesitas más)
+    allowedHeaders: ["Content-Type"], // Permite este encabezado
+  })
+);
 
 app.use(express.json());
 
