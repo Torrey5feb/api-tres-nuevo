@@ -79,25 +79,25 @@ app.get("/producto/:action", async (req, res) => {
 
     console.log("URL devuelta:", url); // Log para depuración
 
-    // Devolver una página HTML con un botón o enlace para abrir la URL
+    // Devolver una página HTML con un botón para abrir la URL
     res.send(`
       <html>
         <head>
           <title>${actionName}</title>
           <style>
             body { font-family: Arial, sans-serif; padding: 20px; text-align: center; }
-            a, button { padding: 10px 20px; background-color: #007bff; color: white; border: none; border-radius: 8px; cursor: pointer; text-decoration: none; display: inline-block; }
-            a:hover, button:hover { background-color: #0056b3; }
+            button { padding: 10px 20px; background-color: #007bff; color: white; border: none; border-radius: 8px; cursor: pointer; }
+            button:hover { background-color: #0056b3; }
           </style>
         </head>
         <body>
           <h3>${actionName}</h3>
-          <p>Haz clic en el botón para abrir el enlace:</p>
-          <a href="${url}" target="_blank">${actionName}</a>
+          <p>Haz clic en el botón para continuar:</p>
+          <button onclick="window.location.href = '${url}'">Abrir ${actionName}</button>
           <script>
-            // Abrir automáticamente si la URL no es '#'
-            if ('${url}' !== '#') {
-              window.location.href = '${url}';
+            // Cerrar la ventana si la URL es '#' o no válida
+            if ('${url}' === '#' || '${url}' === '') {
+              window.close();
             }
           </script>
         </body>
