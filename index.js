@@ -6,14 +6,22 @@ const JSON_URL =
   "https://raw.githubusercontent.com/Torrey5feb/URLS/refs/heads/main/modelos.json";
 
 app.get("/action", async (req, res) => {
-  const { model, action } = req.query; // Obtiene model y action de los parámetros de la URL
-  console.log(`Recibido: model=${model}, action=${action}`);
+  const { model, action } = req.query;
+  console.log(`[INFO] Recibido: model=${model}, action=${action}`);
 
   try {
+    console.log("[DEBUG] Iniciando fetch al JSON:", JSON_URL);
     const response = await fetch(JSON_URL);
     const data = await response.json();
+    console.log(
+      "[DEBUG] Datos obtenidos del JSON:",
+      JSON.stringify(data, null, 2)
+    );
+
     const config = data.config || {};
     const producto = data.productos[model] || {};
+    console.log("[DEBUG] Configuración:", config);
+    console.log("[DEBUG] Producto:", producto);
 
     let url;
     switch (action) {
@@ -36,43 +44,26 @@ app.get("/action", async (req, res) => {
         url = producto.ficha_tecnica;
         break;
       default:
+        console.log("[ERROR] Acción no válida:", action);
         return res.status(400).send("Acción no válida");
     }
 
     if (!url) {
       console.warn(
-        `No se encontró URL para acción="${action}" y modelo="${model}"`
+        `[WARN] No se encontró URL para acción="${action}" y modelo="${model}"`
       );
       return res.status(404).send("URL no encontrada");
     }
 
-    console.log(`Generando redirección a: ${url}`);
-
-    // Devuelve una página HTML que abre la URL en una nueva ventana
-    const html = `
-            <!DOCTYPE html>
-            <html>
-            <head>
-                <title>Redirigiendo...</title>
-                <script>
-                    window.open('${url}', '_blank');
-                    window.close(); // Cierra la ventana temporal (puede no funcionar en todos los navegadores)
-                </script>
-            </head>
-            <body>
-                <p>Abriendo ${action} para ${model}...</p>
-                <p>Si no se abre, haz clic <a href="${url}" target="_blank">aquí</a>.</p>
-            </body>
-            </html>
-        `;
-    res.send(html);
+    console.log(`[INFO] Redirigiendo a: ${url}`);
+    res.redirect(url); // Redirección directa
   } catch (error) {
-    console.error("Error en el servidor:", error);
+    console.error("[ERROR] Error en el servidor:", error);
     res.status(500).send("Error interno del servidor");
   }
 });
 
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 8080; // Cambié a 8080 para coincidir con tus logs
 app.listen(PORT, () => {
   console.log(`Servidor corriendo en puerto ${PORT}`);
 });
