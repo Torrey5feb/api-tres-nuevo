@@ -5,6 +5,34 @@ const app = express();
 const JSON_URL =
   "https://raw.githubusercontent.com/Torrey5feb/URLS/refs/heads/main/modelos.json";
 
+// Lista de dominios permitidos
+const ALLOWED_ORIGINS = ["https://torrey.store", "https://tunegocio.store"];
+
+// Middleware para verificar el origen de la solicitud
+app.use((req, res, next) => {
+  const referer = req.get("Referer"); // Obtiene el encabezado Referer
+  console.log(`[DEBUG] Referer recibido: ${referer}`);
+
+  // Si no hay Referer, denegar acceso
+  if (!referer) {
+    console.log("[WARN] Solicitud sin Referer, acceso denegado");
+    return res.status(403).send("Acceso denegado: Origen no especificado");
+  }
+
+  // Verifica si el Referer comienza con uno de los dominios permitidos
+  const isAllowed = ALLOWED_ORIGINS.some((origin) =>
+    referer.startsWith(origin)
+  );
+  console.log(`[DEBUG] ¿Origen permitido? ${isAllowed}`);
+
+  if (!isAllowed) {
+    console.log(`[WARN] Origen no permitido: ${referer}`);
+    return res.status(403).send("Acceso denegado: Origen no autorizado");
+  }
+
+  next(); // Continúa si el origen es permitido
+});
+
 app.get("/action", async (req, res) => {
   const { model, action } = req.query;
   console.log(`[INFO] Recibido: model=${model}, action=${action}`);
@@ -45,7 +73,7 @@ app.get("/action", async (req, res) => {
         break;
       default:
         console.log("[ERROR] Acción no válida:", action);
-        return res.status(400).send("Acción no válida");
+        return res.status(400).send("Acceso denegado: Acción no válida");
     }
 
     if (!url) {
@@ -56,14 +84,14 @@ app.get("/action", async (req, res) => {
     }
 
     console.log(`[INFO] Redirigiendo a: ${url}`);
-    res.redirect(url); // Redirección directa
+    res.redirect(url);
   } catch (error) {
     console.error("[ERROR] Error en el servidor:", error);
     res.status(500).send("Error interno del servidor");
   }
 });
 
-const PORT = process.env.PORT || 8080; // Cambié a 8080 para coincidir con tus logs
+const PORT = process.env.PORT || 8080;
 app.listen(PORT, () => {
   console.log(`Servidor corriendo en puerto ${PORT}`);
 });
