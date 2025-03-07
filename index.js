@@ -1,24 +1,12 @@
 const express = require("express");
 const fetch = require("node-fetch");
-const cors = require("cors"); // Importa cors
 const app = express();
-
-// Configura CORS para permitir solicitudes desde torrey.store
-app.use(
-  cors({
-    origin: "https://torrey.store", // Permite solo este origen
-    methods: ["POST"], // Permite solo POST (ajusta si necesitas más)
-    allowedHeaders: ["Content-Type"], // Permite este encabezado
-  })
-);
-
-app.use(express.json());
 
 const JSON_URL =
   "https://raw.githubusercontent.com/Torrey5feb/URLS/refs/heads/main/modelos.json";
 
-app.post("/action", async (req, res) => {
-  const { model, action } = req.body;
+app.get("/action", async (req, res) => {
+  const { model, action } = req.query; // Obtiene model y action de los parámetros de la URL
   console.log(`Recibido: model=${model}, action=${action}`);
 
   try {
@@ -48,21 +36,39 @@ app.post("/action", async (req, res) => {
         url = producto.ficha_tecnica;
         break;
       default:
-        return res.status(400).json({ error: "Acción no válida" });
+        return res.status(400).send("Acción no válida");
     }
 
     if (!url) {
       console.warn(
         `No se encontró URL para acción="${action}" y modelo="${model}"`
       );
-      return res.status(404).json({ error: "URL no encontrada" });
+      return res.status(404).send("URL no encontrada");
     }
 
-    console.log(`Enviando URL: ${url}`);
-    res.json({ url });
+    console.log(`Generando redirección a: ${url}`);
+
+    // Devuelve una página HTML que abre la URL en una nueva ventana
+    const html = `
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <title>Redirigiendo...</title>
+                <script>
+                    window.open('${url}', '_blank');
+                    window.close(); // Cierra la ventana temporal (puede no funcionar en todos los navegadores)
+                </script>
+            </head>
+            <body>
+                <p>Abriendo ${action} para ${model}...</p>
+                <p>Si no se abre, haz clic <a href="${url}" target="_blank">aquí</a>.</p>
+            </body>
+            </html>
+        `;
+    res.send(html);
   } catch (error) {
     console.error("Error en el servidor:", error);
-    res.status(500).json({ error: "Error interno" });
+    res.status(500).send("Error interno del servidor");
   }
 });
 
