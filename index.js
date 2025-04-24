@@ -9,10 +9,10 @@ const JSON_URL =
 const ALLOWED_ORIGINS = [
   "https://torrey.store",
   "https://tunegocio.store",
-  "https://torrey.info", // Incluye torrey.info y subdominios como api.torrey.info
+  "https://torrey.info",
 ];
 
-// Middleware para verificar el origen de la solicitud
+// Middleware para verificar el origen de la solicitud y añadir CORS
 app.use((req, res, next) => {
   const referer = req.get("Referer");
   console.log(`[DEBUG] Referer recibido: ${referer}`);
@@ -32,6 +32,8 @@ app.use((req, res, next) => {
     return res.status(403).send("Acceso denegado: Origen no autorizado");
   }
 
+  res.header("Access-Control-Allow-Origin", referer);
+  res.header("Access-Control-Allow-Methods", "GET");
   next();
 });
 
@@ -73,6 +75,9 @@ app.get("/action", async (req, res) => {
       case "ficha_tecnica":
         url = producto.ficha_tecnica;
         break;
+      case "credito": // Añadido para el botón "¡Cómpralo a Crédito!"
+        url = producto.credito_atrato_url;
+        break;
       default:
         console.log("[ERROR] Acción no válida:", action);
         return res.status(400).send("Acceso denegado: Acción no válida");
@@ -85,7 +90,7 @@ app.get("/action", async (req, res) => {
       return res.status(404).send("URL no encontrada");
     }
 
-    console.log(`[INFO] Redirigiendo a: ${url}`);
+    console.log(`[INFO] redirigiendo a: ${url}`);
     res.redirect(url);
   } catch (error) {
     console.error("[ERROR] Error en el servidor:", error);
